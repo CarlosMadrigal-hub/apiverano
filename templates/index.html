@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entrenamiento de Modelo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2 {
+            color: #555;
+            text-align: center;
+        }
+        form {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 150px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #results {
+            margin-top: 20px;
+            display: none;
+        }
+        .metric-card {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .metric-card h3 {
+            margin-top: 0;
+            color: #007bff;
+        }
+        .metric-card p {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .confusion-matrix-container {
+            display: flex;
+            justify-content: center;
+        }
+        .confusion-matrix-table {
+            border-collapse: collapse;
+            text-align: center;
+        }
+        .confusion-matrix-table th, .confusion-matrix-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+        .confusion-matrix-table th {
+            background-color: #f2f2f2;
+        }
+        .graphs {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .graph-container {
+            text-align: center;
+            margin: 10px;
+        }
+        .graph-container img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Entrenar Modelo de Clasificación</h1>
+    <form id="trainForm">
+        <label for="n_samples">Número de muestras para entrenamiento:</label>
+        <input type="number" id="n_samples" name="n_samples" min="100" value="1000" required>
+        <button type="submit">Entrenar Modelo</button>
+    </form>
+
+    <div id="loading" style="text-align: center; display: none;">
+        <p>Entrenando modelo, por favor espere...</p>
+    </div>
+
+    <div id="results">
+        <h2>Resultados del Modelo</h2>
+        <div class="metric-card">
+            <h3>F1 Score</h3>
+            <p id="f1_score"></p>
+        </div>
+        <div class="metric-card">
+            <h3>Accuracy</h3>
+            <p id="accuracy"></p>
+        </div>
+        <div class="metric-card">
+            <h3>Matriz de Confusión</h3>
+            <div class="confusion-matrix-container">
+                <table class="confusion-matrix-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Predicción Positiva</th>
+                            <th>Predicción Negativa</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th>Real Positivo</th>
+                            <td id="cm_00"></td>
+                            <td id="cm_01"></td>
+                        </tr>
+                        <tr>
+                            <th>Real Negativo</th>
+                            <td id="cm_10"></td>
+                            <td id="cm_11"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="graphs">
+            <div class="graph-container">
+                <h3>Curva ROC</h3>
+                <img id="roc_curve" alt="Curva ROC">
+            </div>
+            <div class="graph-container">
+                <h3>Curva de Precisión-Recall</h3>
+                <img id="pr_curve" alt="Curva PR">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('trainForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        
+        const n_samples = document.getElementById('n_samples').value;
+        const resultsDiv = document.getElementById('results');
+        const loadingDiv = document.getElementById('loading');
+
+        resultsDiv.style.display = 'none';
+        loadingDiv.style.display = 'block';
+
+        try {
+            const response = await fetch('/train', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ n_samples: n_samples }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                document.getElementById('f1_score').textContent = data.f1_score.toFixed(4);
+                document.getElementById('accuracy').textContent = data.accuracy.toFixed(4);
+
+                // Matriz de Confusión
+                const cm = data.confusion_matrix;
+                document.getElementById('cm_00').textContent = cm[0][0];
+                document.getElementById('cm_01').textContent = cm[0][1];
+                document.getElementById('cm_10').textContent = cm[1][0];
+                document.getElementById('cm_11').textContent = cm[1][1];
+
+                // Gráficos
+                document.getElementById('roc_curve').src = 'data:image/png;base64,' + data.roc_curve;
+                document.getElementById('pr_curve').src = 'data:image/png;base64,' + data.pr_curve;
+
+                resultsDiv.style.display = 'block';
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            alert('Error en la comunicación con el servidor: ' + error.message);
+        } finally {
+            loadingDiv.style.display = 'none';
+        }
+    });
+</script>
+
+</body>
+</html>
